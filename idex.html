@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Job Portal (Single File Demo)</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    body {margin:0;font-family:Arial, sans-serif;background:#f4f6fb;}
+    header {background:#2563eb;color:#fff;padding:12px 18px;display:flex;justify-content:space-between;align-items:center;}
+    header h1 {margin:0;font-size:20px;}
+    nav a {margin:0 8px;color:#fff;font-weight:bold;cursor:pointer;text-decoration:none;}
+    nav a:hover {text-decoration:underline;}
+    main {padding:20px;max-width:900px;margin:auto;}
+    .hidden {display:none;}
+    .job-card {background:#fff;padding:14px;margin-bottom:12px;border-radius:6px;box-shadow:0 2px 6px rgba(0,0,0,.1);display:flex;justify-content:space-between;align-items:center;}
+    .apply-btn {background:#16a34a;color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;}
+    .status-card {background:#fff;padding:12px;margin-bottom:8px;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+    .admin-badge {background:#000;padding:2px 6px;color:#fff;font-size:12px;border-radius:4px;margin-left:6px;}
+    #userInfo img {border-radius:50%;width:32px;height:32px;margin-left:8px;}
+    .modal {position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);display:none;justify-content:center;align-items:center;}
+    .modal-content {background:#fff;padding:16px;border-radius:8px;width:400px;}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Job Portal</h1>
+    <nav>
+      <a onclick="showSection('home')">Home</a>
+      <a onclick="showSection('status')">Check Status</a>
+      <a onclick="showSection('dashboard')">Dashboard</a>
+    </nav>
+    <div>
+      <div id="g_id_onload"
+           data-client_id="1046790097115-11u5dvus8kkfppd1ido9fhsiu37eg4q3.apps.googleusercontent.com"
+           data-context="signin"
+           data-ux_mode="popup"
+           data-callback="handleCredentialResponse"
+           data-auto_prompt="false">
+      </div>
+      <div class="g_id_signin" data-type="standard"></div>
+      <div id="userInfo" class="hidden">
+        <span id="userName"></span>
+        <span id="ownerBadge" class="admin-badge hidden">OWNER</span>
+        <img id="userPic" src="">
+        <button onclick="signOut()">Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- HOME -->
+    <section id="homeSection">
+      <h2>Available Jobs</h2>
+      <div class="job-card">
+        <div>
+          <b>Frontend Developer</b><br><small>TechSoft - Remote</small>
+        </div>
+        <button class="apply-btn" onclick="openModal('Frontend Developer','TechSoft','Remote')">Apply</button>
+      </div>
+      <div class="job-card">
+        <div>
+          <b>Backend Engineer</b><br><small>CodeHub - Karachi</small>
+        </div>
+        <button class="apply-btn" onclick="openModal('Backend Engineer','CodeHub','Karachi')">Apply</button>
+      </div>
+      <div class="job-card">
+        <div>
+          <b>UI/UX Designer</b><br><small>PixelWorks - Lahore</small>
+        </div>
+        <button class="apply-btn" onclick="openModal('UI/UX Designer','PixelWorks','Lahore')">Apply</button>
+      </div>
+    </section>
+
+    <!-- STATUS -->
+    <section id="statusSection" class="hidden">
+      <h2>Your Applications</h2>
+      <div id="statusList"></div>
+    </section>
+
+    <!-- DASHBOARD -->
+    <section id="dashboardSection" class="hidden">
+      <h2>Dashboard</h2>
+      <div id="dashboardBody"></div>
+    </section>
+  </main>
+
+  <!-- Apply Modal -->
+  <div id="jobModal" class="modal">
+    <div class="modal-content">
+      <h3 id="modalJobTitle"></h3>
+      <p id="modalJobCompany"></p>
+      <input type="file" id="cvUpload" accept=".pdf,.doc,.docx"><br><br>
+      <button class="apply-btn" onclick="submitApplication()">Submit Application</button>
+      <button onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+
+  <script>
+    // Owner email (set your own here)
+    const OWNER_EMAIL = "owner@example.com";
+
+    let currentUser = null;
+    let currentJob = null;
+
+    function decodeJwtResponse(token) {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      return JSON.parse(jsonPayload);
+    }
+
+    function handleCredentialResponse(response) {
+      const data = decodeJwtResponse(response.credential);
+      currentUser = { email:data.email, name:data.name, picture:data.picture };
+      document.getElementById("userInfo").classList.remove("hidden");
+      document.getElementById("userName").textContent = data.name;
+      document.getElementById("userPic").src = data.picture;
+      if (data.email === OWNER_EMAIL) {
+        document.getElementById("ownerBadge").classList.remove("hidden");
+      }
+      renderStatus();
+      renderDashboard();
+    }
+
+    function signOut(){
+      currentUser = null;
+      document.getElementById("userInfo").classList.add("hidden");
+      document.getElementById("ownerBadge").classList.add("hidden");
+      showSection('home');
+    }
+
+    function showSection(sec){
+      document.getElementById("homeSection").classList.add("hidden");
+      document.getElementById("statusSection").classList.add("hidden");
+      document.getElementById("dashboardSection").classList.add("hidden");
+      document.getElementById(sec+"Section").classList.remove("hidden");
+      if(sec==='status') renderStatus();
+      if(sec==='dashboard') renderDashboard();
+    }
+
+    function openModal(job,company,location){
+      currentJob = {job,company,location};
+      document.getElementById("modalJobTitle").textContent = job;
+      document.getElementById("modalJobCompany").textContent = company+" - "+location;
+      document.getElementById("jobModal").style.display="flex";
+    }
+    function closeModal(){ document.getElementById("jobModal").style.display="none"; }
+
+    function submitApplication(){
+      if(!currentUser){alert("Please sign in first.");return;}
+      const file = document.getElementById("cvUpload").files[0];
+      if(!file){alert("Upload CV before submit.");return;}
+      const reader = new FileReader();
+      reader.onload = function(e){
+        let submissions = JSON.parse(localStorage.getItem("submissions")||"[]");
+        submissions.push({
+          user:currentUser,
+          job:currentJob,
+          fileName:file.name,
+          fileData:e.target.result,
+          time:new Date().toISOString()
+        });
+        localStorage.setItem("submissions",JSON.stringify(submissions));
+        alert("Application submitted ?");
+        closeModal();
+        renderStatus();
+        renderDashboard();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function renderStatus(){
+      const box=document.getElementById("statusList");
+      box.innerHTML="";
+      if(!currentUser){box.innerHTML="<p>Please login to see your applications.</p>";return;}
+      const submissions=JSON.parse(localStorage.getItem("submissions")||"[]");
+      const my=submissions.filter(s=>s.user.email===currentUser.email);
+      if(my.length===0){box.innerHTML="<p>No applications yet.</p>";return;}
+      my.forEach(s=>{
+        const div=document.createElement("div");
+        div.className="status-card";
+        div.innerHTML=`<b>${s.job.job}</b> (${s.job.company})<br>
+                       <small>${s.fileName}</small><br>
+                       <a href="${s.fileData}" download="${s.fileName}">Download CV</a>`;
+        box.appendChild(div);
+      });
+    }
+
+    function renderDashboard(){
+      const box=document.getElementById("dashboardBody");
+      box.innerHTML="";
+      if(!currentUser){box.innerHTML="<p>Please login.</p>";return;}
+      const submissions=JSON.parse(localStorage.getItem("submissions")||"[]");
+      if(currentUser.email===OWNER_EMAIL){
+        if(submissions.length===0){box.innerHTML="<p>No CVs received yet.</p>";return;}
+        submissions.forEach(s=>{
+          const div=document.createElement("div");
+          div.className="status-card";
+          div.innerHTML=`<b>${s.job.job}</b> (${s.job.company})<br>
+                         From: ${s.user.name} (${s.user.email})<br>
+                         <small>${s.fileName}</small><br>
+                         <a href="${s.fileData}" download="${s.fileName}">Download CV</a>`;
+          box.appendChild(div);
+        });
+      } else {
+        box.innerHTML="<p>Only owner can see all CVs. You can check your own in 'Check Status'.</p>";
+      }
+    }
+  </script>
+</body>
+</html>
